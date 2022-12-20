@@ -13,6 +13,10 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+
 public class Publication {
 
     interface Published {
@@ -23,18 +27,19 @@ public class Publication {
     private PublishDiscoverySession publishDiscoverySession;
     private Published pubs;
     private PeerHandle peerHandle_;
-
+    private HashMap<byte[],byte[]> advertisingInfo;
     public Publication(Published pubs){
         this.pubs = pubs;
     }
 
-    public void publishService(WifiAwareSession wifiAwareSession,byte[] port, byte[] status) {
+    public void publishService(WifiAwareSession wifiAwareSession, byte[] port, HashMap<byte[],byte[]> advertisingInfo) {
 
         this.wifiAwareSession = wifiAwareSession;
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) { return; }
 
         PublishConfig config = new PublishConfig.Builder()
                 .setServiceName("network.datahop.wifiawaresample")
+                .setMatchFilter(new ArrayList<>(advertisingInfo.keySet()))
                 .build();
 
         wifiAwareSession.publish(config, new DiscoverySessionCallback() {
@@ -66,15 +71,6 @@ public class Publication {
         return publishDiscoverySession;
     }
 
-    public void sendIP(byte[] ip){
-        publishDiscoverySession.sendMessage(peerHandle_,WifiAware.IP_MESSAGE,ip);
-    }
-
-    public NetworkSpecifier specifyNetwork(byte[] port){
-        publishDiscoverySession.sendMessage(peerHandle_,WifiAware.PORT_MESSAGE,port);
-        return new WifiAwareNetworkSpecifier.Builder(publishDiscoverySession, peerHandle_)
-                .build();
-    }
 
     public void closeSession(){
         if (publishDiscoverySession != null) {
