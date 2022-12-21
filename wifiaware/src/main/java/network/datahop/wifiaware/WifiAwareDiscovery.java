@@ -11,56 +11,55 @@ import android.net.wifi.aware.IdentityChangedListener;
 import android.net.wifi.aware.WifiAwareManager;
 import android.net.wifi.aware.WifiAwareSession;
 import android.os.Build;
-import android.os.ParcelUuid;
 import android.util.Log;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
-import java.util.UUID;
 
-import datahop.AdvertisingDriver;
-import datahop.AdvertisementNotifier;
+import datahop.DiscoveryNotifier;
+import datahop.DiscoveryDriver;
 
-public class WifiAwareAdvertising implements AdvertisingDriver, Publication.Published  {
+public class WifiAwareDiscovery implements DiscoveryDriver, Subscription.Subscribed{
 
-    private static final String TAG = WifiAwareAdvertising.class.getSimpleName();
+    public static final int  STATUS_MESSAGE = 66;
 
-    private static volatile WifiAwareAdvertising mWifiAwareAdvertising;
+    private static Context context;
 
-    private Context context;
-    private WifiAwareSession wifiAwareSession;
-    private WifiAwareManager wifiAwareManager;
-    private BroadcastReceiver broadcastReceiver;
-
-    private static AdvertisementNotifier notifier;
-
-    private List<UUID> pendingNotifications;
-
-    private String serviceId,peerInfo;
-
-    private int port;
-
-    private boolean started;
+    private static volatile WifiAwareDiscovery mWifiAwareDiscovery;
 
     private HashMap<byte[],byte[]> advertisingInfo;
 
-    private Publication pub;
-    private WifiAwareAdvertising(Context context){
+    private Subscription sub;
+
+
+    private static DiscoveryNotifier notifier;
+
+    private WifiAwareSession wifiAwareSession;
+    private WifiAwareManager wifiAwareManager;
+    private BroadcastReceiver broadcastReceiver;
+    private String serviceId,peerId;
+
+    private static final String TAG = WifiAwareDiscovery.class.getSimpleName();
+
+    /**
+     * WifiAwareDiscovery class constructor
+     * @param context Android context
+     */
+    private WifiAwareDiscovery(Context context)
+    {
         this.context = context;
-        this.port = 4324;
         this.advertisingInfo = new HashMap<>();
+
     }
 
-    /* Singleton method that creates and returns a BLEAdvertising instance
-     * @return BLEAdvertising instance
+    /* Singleton method that creates and returns a WifiAwareDiscovery instance
+     * @return WifiAwareDiscovery instance
      */
-    public static synchronized WifiAwareAdvertising getInstance(Context appContext) {
-        if (mWifiAwareAdvertising == null) {
-            mWifiAwareAdvertising = new WifiAwareAdvertising(appContext);
+    public static synchronized WifiAwareDiscovery getInstance(Context appContext) {
+        if (mWifiAwareDiscovery == null) {
+            mWifiAwareDiscovery = new WifiAwareDiscovery(appContext);
         }
-        return mWifiAwareAdvertising;
+        return mWifiAwareDiscovery;
     }
 
     /**
@@ -68,16 +67,17 @@ public class WifiAwareAdvertising implements AdvertisingDriver, Publication.Publ
      * when creating or destroying the group or when receiving users connections
      * @param notifier instance
      */
-    public void setNotifier(AdvertisementNotifier notifier){
-        //Log.d(TAG,"Trying to start");
+    public void setNotifier(DiscoveryNotifier notifier){
+        Log.d(TAG,"Trying to start");
         this.notifier = notifier;
     }
 
 
     @Override
-    public void start(String serviceId, String peerInfo) {
+    public void start(String serviceId,String peerInfo, long scanTime, long idleTime) {
+
         this.serviceId = serviceId;
-        this.peerInfo = peerInfo;
+        this.peerId = peerInfo;
         Log.d(TAG, "Starting WifiAware ADV " + this.serviceId.toString());
 
         if (notifier == null || this.serviceId == null) {
@@ -85,7 +85,7 @@ public class WifiAwareAdvertising implements AdvertisingDriver, Publication.Publ
             return ;
         }
 
-        this.pub = new Publication(this);
+        this.sub = new Subscription(this);
 
         PackageManager packageManager = context.getPackageManager();
         boolean hasNan  = false;
@@ -134,7 +134,6 @@ public class WifiAwareAdvertising implements AdvertisingDriver, Publication.Publ
                 attachToNanSession();
             }
         }
-
     }
 
     /**
@@ -169,7 +168,7 @@ public class WifiAwareAdvertising implements AdvertisingDriver, Publication.Publ
                 closeSession();
                 wifiAwareSession = session;
                 //setHaveSession(true);
-                startAdvertising(wifiAwareSession);
+                startDiscovery(wifiAwareSession);
             }
 
             @Override
@@ -189,10 +188,24 @@ public class WifiAwareAdvertising implements AdvertisingDriver, Publication.Publ
         }, null);
     }
 
+    @Override
+    public void stop() {
 
-    public void startAdvertising(WifiAwareSession session){
-        pub.closeSession();
-        pub.publishService(session,portToBytes(port),advertisingInfo);
+    }
+
+    @Override
+    public void addAdvertisingInfo(String characteristic, String info){
+
+    }
+
+    @Override
+    public void messageReceived(byte[] message) {
+
+    }
+
+    private void startDiscovery(WifiAwareSession session){
+        sub.closeSession();
+        sub.subscribeToService(session,peerId.getBytes(StandardCharsets.UTF_8),advertisingInfo);
     }
 
     private void closeSession() {
@@ -203,30 +216,6 @@ public class WifiAwareAdvertising implements AdvertisingDriver, Publication.Publ
         }
     }
 
-    @Override
-    public void addAdvertisingInfo(String topic, String info) {
-        this.advertisingInfo.put(topic.getBytes(StandardCharsets.UTF_8),info.getBytes(StandardCharsets.UTF_8));
-    }
-
-    @Override
-    public void notifyEmptyValue() {
-
-    }
-
-    @Override
-    public void notifyNetworkInformation(String s, String s1) {
-
-    }
-
-    @Override
-    public void stop() {
-        closeSession();
-    }
-
-    @Override
-    public void messageReceived(byte[] message) {
-
-    }
 
     public int byteToPortInt(byte[] bytes){
         return ((bytes[1] & 0xFF) << 8 | (bytes[0] & 0xFF));
@@ -238,4 +227,5 @@ public class WifiAwareAdvertising implements AdvertisingDriver, Publication.Publ
         data[1] = (byte) ((port >> 8) & 0xFF);
         return data;
     }
+
 }
